@@ -8,7 +8,7 @@ __pycache__/
 
 # Virtual environment
 .venv/
-env/
+.env
 venv/
 backend/.env
 
@@ -36,3 +36,4 @@ cache/
 
 .zencoder
 .zenflow
+frontend/README.md

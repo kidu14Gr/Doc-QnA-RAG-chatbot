@@ -33,13 +33,18 @@ class VectorStore:
         self.index.add(vectors)
 
         for chunk in chunks:
-            self.metadata.append(chunk)
+            # store only serializable metadata (avoid embeddings in responses)
+            cleaned = {k: v for k, v in chunk.items() if k != "embedding"}
+            self.metadata.append(cleaned)
 
         self.save_index()
 
     # --------------------------------------------
 
     def search(self, query_vector, top_k=4):
+        if self.index is None or not self.metadata:
+            return []
+
         query_vector = np.array([query_vector]).astype("float32")
 
         distances, indices = self.index.search(query_vector, top_k)
@@ -47,7 +52,10 @@ class VectorStore:
         results = []
         for i in indices[0]:
             if i < len(self.metadata):
-                results.append(self.metadata[i])
+                item = self.metadata[i]
+                if isinstance(item, dict) and "embedding" in item:
+                    item = {k: v for k, v in item.items() if k != "embedding"}
+                results.append(item)
 
         return results
 

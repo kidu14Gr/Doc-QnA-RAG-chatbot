@@ -1,7 +1,7 @@
-from ingestion.pdf_loader import load_and_chunk_pdf
-from ingestion.docx_loader import load_and_chunk_docx
-from retrieval.embedder import Embedder
-from retrieval.vector_store import VectorStore
+from rag_core.ingestion.pdf_loader import load_and_chunk_pdf
+from rag_core.ingestion.docx_loader import load_and_chunk_docx
+from rag_core.retrieval.embedder import Embedder
+from rag_core.retrieval.vector_store import VectorStore
 
 class IngestPipeline:
     """

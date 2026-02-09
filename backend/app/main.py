@@ -1,7 +1,7 @@
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.responses import JSONResponse
 import shutil, os
-from services.rag_service import RAGService
+from .services.rag_service import RAGService
 
 app = FastAPI(title="AI Docs RAG Backend")
 rag_service = RAGService()
