@@ -5,13 +5,15 @@ import pickle
 
 
 class VectorStore:
-    def __init__(self, index_path="data/faiss_index"):
+    def __init__(self, index_path: str = "data/faiss_index"):
         self.index_path = index_path
         self.index = None
         self.metadata = []
 
-        # make sure storage folder exists
-        os.makedirs("data", exist_ok=True)
+        # Ensure directory exists (supports per-user paths e.g. storage/users/<id>/vectors/)
+        index_dir = os.path.dirname(index_path)
+        if index_dir:
+            os.makedirs(index_dir, exist_ok=True)
 
         if os.path.exists(index_path):
             self.load_index()

@@ -1,14 +1,7 @@
-from typing import TYPE_CHECKING
-
-_LCConversationBufferMemory = None
-
-if TYPE_CHECKING:
-    from langchain.memory import ConversationBufferMemory as _LCConversationBufferMemory  # type: ignore
-else:
-    try:
-        from langchain.memory import ConversationBufferMemory as _LCConversationBufferMemory
-    except Exception:
-        _LCConversationBufferMemory = None
+try:
+    from langchain.memory import ConversationBufferMemory as _LCConversationBufferMemory
+except Exception:
+    _LCConversationBufferMemory = None
 
 
 if _LCConversationBufferMemory is not None:

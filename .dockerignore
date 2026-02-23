@@ -1,0 +1,32 @@
+# Node/front-end build artifacts
+node_modules
+frontend/dist
+
+# Local storage and environment
+storage/*
+.env
+.git
+
+# Python caches and virtual environments
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+venv/
+.venv/
+ENV/
+env/
+
+# Editor/IDE files
+*.swp
+*.swo
+.vscode/
+.idea/
+
+# custom directories to ignore
+zenflow/
+zencoder/
+
+# user-uploaded data
+uploaded_docs/
+# add any other user data folders here

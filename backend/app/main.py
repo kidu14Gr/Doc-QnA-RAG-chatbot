@@ -1,47 +1,73 @@
-from fastapi import FastAPI, UploadFile, File, Form
+"""
+AI-DOC-RAG Backend: SaaS-ready multi-user API.
+Clean separation: auth and DB in backend; RAG logic in rag_core.
+"""
+import logging
+import os
+from contextlib import asynccontextmanager
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+    load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", ".env"))
+except ImportError:
+    pass  # Env set by Docker or shell
+
+from fastapi import FastAPI, Request, status
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-import shutil, os
-from .services.rag_service import RAGService
 
-app = FastAPI(title="AI Docs RAG Backend")
-rag_service = RAGService()
+from .auth import router as auth_router
+from .db import init_db
+from .routers import chat_router, query_router, upload_router
 
-UPLOAD_FOLDER = os.path.join(os.getcwd(), "uploaded_docs")
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
-# --------------------------------------------
-# Upload PDF endpoint
-@app.post("/upload/pdf")
-async def upload_pdf(file: UploadFile = File(...)):
-    if not file.filename.lower().endswith(".pdf"):
-        return JSONResponse({"error": "Only PDF files allowed"}, status_code=400)
-
-    file_path = os.path.join(UPLOAD_FOLDER, file.filename)
-    with open(file_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-
-    rag_service.ingest_pdf(file_path)
-    return JSONResponse({"message": f"{file.filename} ingested successfully!"})
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 
-# --------------------------------------------
-# Upload DOCX endpoint
-@app.post("/upload/docx")
-async def upload_docx(file: UploadFile = File(...)):
-    if not file.filename.lower().endswith(".docx"):
-        return JSONResponse({"error": "Only DOCX files allowed"}, status_code=400)
-
-    file_path = os.path.join(UPLOAD_FOLDER, file.filename)
-    with open(file_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-
-    rag_service.ingest_docx(file_path)
-    return JSONResponse({"message": f"{file.filename} ingested successfully!"})
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    logger.info("Database tables initialized")
+    yield
+    # Shutdown if needed
+    pass
 
 
-# --------------------------------------------
-# Query endpoint
-@app.post("/query")
-async def query(question: str = Form(...), top_k: int = Form(4)):
-    results = rag_service.query(question, top_k)
-    return JSONResponse(results)
+app = FastAPI(
+    title="AI Docs RAG Backend",
+    description="Multi-user document RAG with auth and per-user storage",
+    lifespan=lifespan,
+)
+
+# CORS: allow frontend origin(s)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Restrict to your frontend URL in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.exception("Unhandled error: %s", exc)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"detail": "Internal server error"},
+    )
+
+
+app.include_router(auth_router)
+app.include_router(upload_router)
+app.include_router(query_router)
+app.include_router(chat_router)
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}

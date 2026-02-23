@@ -4,26 +4,33 @@ from rag_core.generation.llm_model import LLMModel
 from rag_core.generation.prompt_templates import build_doc_prompt, build_general_prompt
 from rag_core.pipeline.memory import ConversationBufferMemory
 
+
 class QueryPipeline:
     """
-    Question → embed → retrieve → prompt → LLM answer
+    Question → embed → retrieve → prompt → LLM answer.
+    Accepts optional embedder, store, llm for per-user isolation.
+    If history is passed to query(), it is used instead of in-memory buffer (DB-backed).
     """
 
-    def __init__(self):
-        self.embedder = Embedder()
-        self.store = VectorStore()
-        self.llm = LLMModel()
-        self.memory = ConversationBufferMemory(memory_key="history", return_messages=False)
+    def __init__(self, embedder=None, store=None, llm=None, memory=None):
+        self.embedder = embedder if embedder is not None else Embedder()
+        self.store = store if store is not None else VectorStore()
+        self.llm = llm if llm is not None else LLMModel()
+        self.memory = memory if memory is not None else ConversationBufferMemory(memory_key="history", return_messages=False)
 
-    def query(self, question: str, top_k: int = 4):
-        # 0️⃣ Load conversation history + classify intent
-        history = self.memory.load_memory_variables({}).get("history", "")
-        intent = self.llm.classify_intent(question, history)
+    def query(self, question: str, top_k: int = 4, history: str | None = None):
+        # 0️⃣ Conversation history: from DB (history) or in-memory buffer
+        if history is not None:
+            history_str = history
+        else:
+            history_str = self.memory.load_memory_variables({}).get("history", "")
+        intent = self.llm.classify_intent(question, history_str)
 
         # If no document has been ingested and question is document-related
         if intent == "DOCUMENT" and (self.store.index is None or not self.store.metadata):
             answer = "Please upload your document first."
-            self.memory.save_context({"input": question}, {"output": answer})
+            if history is None:
+                self.memory.save_context({"input": question}, {"output": answer})
             return {
                 "answer": answer,
                 "sources": []
@@ -31,9 +38,10 @@ class QueryPipeline:
 
         # General questions should bypass retrieval
         if intent == "GENERAL":
-            prompt = build_general_prompt(question, history)
+            prompt = build_general_prompt(question, history_str)
             answer = self.llm.generate_general(prompt)
-            self.memory.save_context({"input": question}, {"output": answer})
+            if history is None:
+                self.memory.save_context({"input": question}, {"output": answer})
             return {
                 "answer": answer,
                 "sources": []
@@ -49,13 +57,14 @@ class QueryPipeline:
         context = "\n\n".join([r["text"] for r in results])
 
         # 4️⃣ Build RAG prompt
-        prompt = build_doc_prompt(question, context, history)
+        prompt = build_doc_prompt(question, context, history_str)
 
         # 5️⃣ Generate answer
         answer = self.llm.generate(prompt)
 
-        # 6️⃣ Save to memory
-        self.memory.save_context({"input": question}, {"output": answer})
+        # 6️⃣ Save to memory only when not using DB-backed history
+        if history is None:
+            self.memory.save_context({"input": question}, {"output": answer})
 
         return {
             "answer": answer,
