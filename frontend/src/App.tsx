@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { AuthSection, clearStoredToken, getStoredToken } from './components/AuthSection';
 import { Header } from './components/Header';
 import { UploadSection } from './components/UploadSection';
 import { ChatSection } from './components/ChatSection';
@@ -8,6 +9,7 @@ import type { DocumentInfo, Message, View } from './types';
 const DEFAULT_TOP_K = 4;
 
 export default function App() {
+  const [token, setToken] = useState<string | null>(() => getStoredToken());
   const [activeView, setActiveView] = useState<View>('home');
   const [uploadedDocument, setUploadedDocument] = useState<DocumentInfo | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -34,7 +36,7 @@ export default function App() {
     setActiveView('chat');
 
     try {
-      const result = await askQuestion(trimmed, DEFAULT_TOP_K);
+      const result = await askQuestion(trimmed, DEFAULT_TOP_K, token ?? undefined);
       const sources = (result.sources ?? []).map((source, idx) => {
         const typed = source as Record<string, unknown>;
         const pageValue = typed.page ?? typed.page_number;
@@ -73,9 +75,17 @@ export default function App() {
     }
   };
 
+  if (!token) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex flex-col">
+        <AuthSection onAuthenticated={setToken} />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex flex-col">
-      <Header activeView={activeView} onNavigate={setActiveView} />
+      <Header activeView={activeView} onNavigate={setActiveView} onLogout={() => { clearStoredToken(); setToken(null); }} />
 
       <main className="flex-1 overflow-hidden">
         {activeView === 'home' && (
@@ -117,7 +127,7 @@ export default function App() {
         )}
 
         {activeView === 'upload' && (
-          <UploadSection onDocumentUpload={handleDocumentUpload} />
+          <UploadSection onDocumentUpload={handleDocumentUpload} token={token} />
         )}
 
         {activeView === 'chat' && (

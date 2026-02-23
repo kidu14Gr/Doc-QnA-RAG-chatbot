@@ -1,12 +1,13 @@
-import { FileText, Home, MessageSquare } from 'lucide-react';
+import { FileText, Home, LogOut, MessageSquare } from 'lucide-react';
 import type { View } from '../types';
 
 interface HeaderProps {
   activeView: View;
   onNavigate: (view: View) => void;
+  onLogout?: () => void;
 }
 
-export function Header({ activeView, onNavigate }: HeaderProps) {
+export function Header({ activeView, onNavigate, onLogout }: HeaderProps) {
   const navItems: Array<{ view: View; label: string; icon: React.ReactNode }> = [
     { view: 'home', label: 'Home', icon: <Home className="w-4 h-4" /> },
     { view: 'upload', label: 'Upload', icon: <FileText className="w-4 h-4" /> },
@@ -49,6 +50,15 @@ export function Header({ activeView, onNavigate }: HeaderProps) {
                 <span className="hidden sm:inline">{item.label}</span>
               </button>
             ))}
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                className="flex items-center space-x-2 px-4 py-2 rounded-lg text-slate-600 hover:bg-red-50 hover:text-red-600 transition-all duration-300"
+              >
+                <LogOut className="w-4 h-4" />
+                <span className="hidden sm:inline">Log out</span>
+              </button>
+            )}
           </nav>
         </div>
       </div>

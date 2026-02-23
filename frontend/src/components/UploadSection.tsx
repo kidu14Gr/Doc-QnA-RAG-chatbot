@@ -7,9 +7,10 @@ type UploadState = 'idle' | 'uploading' | 'processing' | 'complete';
 
 interface UploadSectionProps {
   onDocumentUpload: (doc: DocumentInfo) => void;
+  token?: string | null;
 }
 
-export function UploadSection({ onDocumentUpload }: UploadSectionProps) {
+export function UploadSection({ onDocumentUpload, token }: UploadSectionProps) {
   const [uploadState, setUploadState] = useState<UploadState>('idle');
   const [uploadProgress, setUploadProgress] = useState(0);
   const [dragActive, setDragActive] = useState(false);
@@ -69,7 +70,7 @@ export function UploadSection({ onDocumentUpload }: UploadSectionProps) {
     }, 140);
 
     try {
-      await uploadDocument(file);
+      await uploadDocument(file, token ?? undefined);
       setUploadProgress(100);
       setUploadState('processing');
 
