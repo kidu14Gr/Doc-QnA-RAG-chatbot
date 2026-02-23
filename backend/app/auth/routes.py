@@ -27,6 +27,14 @@ def _validate_password(password: str) -> None:
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Password must be at least 8 characters",
         )
+    # bcrypt (used by passlib) has a 72-byte limit; enforce it here so we
+    # never hit a ValueError deep in the hashing library. The limit is by
+    # bytes, not characters, so we check the utf-8 encoded length.
+    if len(password.encode("utf-8")) > 72:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Password too long (must be 72 bytes or fewer).",
+        )
 
 
 class SignupBody(BaseModel):

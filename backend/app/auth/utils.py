@@ -13,7 +13,18 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    try:
+        return pwd_context.hash(password)
+    except ValueError as exc:
+        # This should never happen because we validate length up front, but
+        # if it does we convert it into a nicer HTTP error.
+        # Import locally to avoid circular dependency at module import time.
+        from fastapi import HTTPException, status
+
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid password",
+        ) from exc
 
 
 def verify_password(plain: str, hashed: str) -> bool:

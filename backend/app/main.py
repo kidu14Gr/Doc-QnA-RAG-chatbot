@@ -43,10 +43,19 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+origins = [
+    "http://localhost:5173",  # Vite dev server
+    "http://localhost:3000",  # sometimes used by CRA/spa
+    # maybe add other hosts as needed; you can also set allow_origins=["*"]
+    # in production if you genuinely have a public API and are careful with
+    # credentials (allow_credentials=True). For now we explicitly list
+    # dev hosts.
+]
+
 # CORS: allow frontend origin(s)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Restrict to your frontend URL in production
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -56,9 +65,17 @@ app.add_middleware(
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.exception("Unhandled error: %s", exc)
+    # CORS middleware normally adds headers, but some errors may slip
+    # through and the frontend ends up with a missing header error. Add a
+    # permissive header here so that the client always sees something even
+    # if the error originated early in the request lifecycle.
+    headers = {"Access-Control-Allow-Origin": "*"}
+    if request.headers.get("origin"):
+        headers["Access-Control-Allow-Origin"] = request.headers.get("origin")
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"detail": "Internal server error"},
+        headers=headers,
     )
 
 
