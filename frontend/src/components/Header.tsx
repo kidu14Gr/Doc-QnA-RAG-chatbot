@@ -14,9 +14,6 @@ export function Header({ activeView, onNavigate, isAuthenticated, onOpenAuth, on
     { view: 'home', label: 'Home', icon: <Home className="w-4 h-4" /> },
     { view: 'chat', label: 'Chat', icon: <MessageSquare className="w-4 h-4" /> },
   ];
-  if (isAuthenticated) {
-    navItems.splice(1, 0, { view: 'upload', label: 'Upload', icon: <FileText className="w-4 h-4" /> });
-  }
 
   return (
     <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 sticky top-0 z-50 shadow-sm">

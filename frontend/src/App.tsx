@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import { AuthSection, clearStoredToken, getStoredToken } from './components/AuthSection';
+import { AuthSection, clearStoredToken, getStoredToken, setStoredToken } from './components/AuthSection';
 import { Header } from './components/Header';
-import { UploadSection } from './components/UploadSection';
 import { ChatSection } from './components/ChatSection';
 import { ArrowRight, Sparkles, Bot, ShieldCheck, FileUp } from 'lucide-react';
 import { askQuestion } from './lib/api';
@@ -24,8 +23,14 @@ export default function App() {
     setShowAuthModal(true);
   };
 
-  const handleDocumentUpload = (doc: DocumentInfo) => {
-    setUploadedDocument(doc);
+  const handleDocumentUpload = (docName: string) => {
+    const newDoc: DocumentInfo = {
+      id: crypto.randomUUID?.() ?? Date.now().toString(),
+      name: docName,
+      type: docName.toLowerCase().endsWith('.pdf') ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      uploadedAt: new Date(),
+    };
+    setUploadedDocument(newDoc);
     setActiveView('chat');
   };
 
@@ -88,13 +93,7 @@ export default function App() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex flex-col">
       <Header
         activeView={activeView}
-        onNavigate={(view) => {
-          if (view === 'upload' && !isAuthenticated) {
-            openAuthModal('signin');
-            return;
-          }
-          setActiveView(view);
-        }}
+        onNavigate={setActiveView}
         isAuthenticated={isAuthenticated}
         onOpenAuth={() => openAuthModal('signin')}
         onLogout={
@@ -103,6 +102,7 @@ export default function App() {
                 clearStoredToken();
                 setToken(null);
                 setUploadedDocument(null);
+                setMessages([]);
                 setActiveView('home');
               }
             : undefined
@@ -133,12 +133,14 @@ export default function App() {
                     Start chatting
                     <ArrowRight className="inline-block ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
                   </button>
-                  <button
-                    onClick={() => (isAuthenticated ? setActiveView('upload') : openAuthModal('signup'))}
-                    className="px-6 py-3 bg-white text-slate-700 rounded-xl shadow border border-slate-200 hover:shadow-md transition-all duration-300"
-                  >
-                    Upload docs
-                  </button>
+                  {!isAuthenticated && (
+                    <button
+                      onClick={() => openAuthModal('signup')}
+                      className="px-6 py-3 bg-white text-slate-700 rounded-xl shadow border border-slate-200 hover:shadow-md transition-all duration-300"
+                    >
+                      Sign up
+                    </button>
+                  )}
                 </div>
                 <div className="grid sm:grid-cols-3 gap-3 pt-2 text-sm text-slate-600">
                   <div className="p-3 rounded-xl bg-white/80 border border-slate-200 flex items-center gap-2">
@@ -173,35 +175,6 @@ export default function App() {
           </div>
         )}
 
-        {activeView === 'upload' && isAuthenticated && (
-          <UploadSection onDocumentUpload={handleDocumentUpload} token={token} />
-        )}
-
-        {activeView === 'upload' && !isAuthenticated && (
-          <div className="h-full flex items-center justify-center px-4">
-            <div className="text-center max-w-md p-8 rounded-2xl bg-white border border-slate-200 shadow-lg">
-              <h2 className="text-2xl text-slate-900 mb-2">Sign in required</h2>
-              <p className="text-slate-600 mb-5">
-                Upload and document-grounded chat are protected features. Continue with an account to unlock them.
-              </p>
-              <div className="flex justify-center gap-3">
-                <button
-                  onClick={() => openAuthModal('signin')}
-                  className="px-5 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg"
-                >
-                  Sign in
-                </button>
-                <button
-                  onClick={() => openAuthModal('signup')}
-                  className="px-5 py-2 border border-slate-200 rounded-lg text-slate-700"
-                >
-                  Sign up
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
         {activeView === 'chat' && (
           <ChatSection
             messages={messages}
@@ -210,6 +183,8 @@ export default function App() {
             isAnswering={isAnswering}
             isGuest={!isAuthenticated}
             onUpgradeClick={() => openAuthModal('signup')}
+            onDocumentUpload={handleDocumentUpload}
+            token={token}
           />
         )}
       </main>

@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect, KeyboardEvent } from 'react';
-import { Send, User, Bot, FileText, Sparkles } from 'lucide-react';
+import { useState, useRef, useEffect, KeyboardEvent, ChangeEvent } from 'react';
+import { Send, User, Bot, FileText, Sparkles, Paperclip, Loader2, CheckCircle, X } from 'lucide-react';
+import { uploadDocument } from '../lib/api';
 import type { Message, Source } from '../types';
 
 interface ChatSectionProps {
@@ -9,6 +10,8 @@ interface ChatSectionProps {
   isAnswering: boolean;
   isGuest?: boolean;
   onUpgradeClick?: () => void;
+  onDocumentUpload?: (docName: string) => void;
+  token?: string | null;
 }
 
 export function ChatSection({
@@ -18,10 +21,17 @@ export function ChatSection({
   isAnswering,
   isGuest = false,
   onUpgradeClick,
+  onDocumentUpload,
+  token,
 }: ChatSectionProps) {
   const [input, setInput] = useState('');
+  const [uploadState, setUploadState] = useState<'idle' | 'uploading' | 'processing' | 'complete'>('idle');
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadingFileName, setUploadingFileName] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -40,6 +50,71 @@ export function ChatSection({
       e.preventDefault();
       handleSend();
     }
+  };
+
+  const handleFileSelect = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const validTypes = [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    ];
+
+    const isValidType =
+      validTypes.includes(file.type) ||
+      file.name.toLowerCase().endsWith('.pdf') ||
+      file.name.toLowerCase().endsWith('.docx');
+
+    if (!isValidType) {
+      setUploadError('Please upload a PDF or DOCX file.');
+      setTimeout(() => setUploadError(null), 3000);
+      return;
+    }
+
+    setUploadError(null);
+    setUploadingFileName(file.name);
+    setUploadState('uploading');
+    setUploadProgress(8);
+
+    const progressInterval = setInterval(() => {
+      setUploadProgress((prev) => (prev >= 90 ? prev : prev + 7));
+    }, 140);
+
+    try {
+      await uploadDocument(file, token ?? undefined);
+      setUploadProgress(100);
+      setUploadState('processing');
+
+      setTimeout(() => {
+        setUploadState('complete');
+        setTimeout(() => {
+          onDocumentUpload?.(file.name);
+          setUploadState('idle');
+          setUploadProgress(0);
+          setUploadingFileName('');
+        }, 800);
+      }, 600);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Upload failed. Please try again.';
+      setUploadError(message);
+      setUploadProgress(0);
+      setUploadState('idle');
+      setTimeout(() => setUploadError(null), 4000);
+    } finally {
+      clearInterval(progressInterval);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleAttachClick = () => {
+    if (isGuest) {
+      onUpgradeClick?.();
+      return;
+    }
+    fileInputRef.current?.click();
   };
 
   return (
@@ -124,8 +199,55 @@ export function ChatSection({
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-4">
+      <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-4 space-y-3">
+        {uploadState !== 'idle' && (
+          <div className="flex items-center space-x-3 text-sm">
+            {uploadState === 'uploading' && (
+              <>
+                <Loader2 className="w-4 h-4 text-indigo-600 animate-spin flex-shrink-0" />
+                <span className="text-slate-600 flex-1 truncate">Uploading {uploadingFileName}...</span>
+                <span className="text-slate-500">{uploadProgress}%</span>
+              </>
+            )}
+            {uploadState === 'processing' && (
+              <>
+                <FileText className="w-4 h-4 text-purple-600 animate-pulse flex-shrink-0" />
+                <span className="text-slate-600 flex-1 truncate">Processing {uploadingFileName}...</span>
+              </>
+            )}
+            {uploadState === 'complete' && (
+              <>
+                <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+                <span className="text-slate-600 flex-1 truncate">{uploadingFileName} ready!</span>
+              </>
+            )}
+          </div>
+        )}
+
+        {uploadError && (
+          <div className="flex items-center space-x-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+            <X className="w-4 h-4 flex-shrink-0" />
+            <span className="flex-1">{uploadError}</span>
+          </div>
+        )}
+
         <div className="flex items-end space-x-3">
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            accept=".pdf,.docx"
+            onChange={handleFileSelect}
+          />
+          <button
+            type="button"
+            onClick={handleAttachClick}
+            disabled={uploadState !== 'idle'}
+            className="p-3 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            title={isGuest ? 'Sign in to upload documents' : 'Attach document'}
+          >
+            <Paperclip className="w-5 h-5" />
+          </button>
           <input
             ref={inputRef}
             type="text"

@@ -4,6 +4,7 @@ Password hashing and JWT creation/validation. No auth logic in rag_core.
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
+import bcrypt
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
@@ -15,20 +16,30 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 def hash_password(password: str) -> str:
     try:
         return pwd_context.hash(password)
-    except ValueError as exc:
-        # This should never happen because we validate length up front, but
-        # if it does we convert it into a nicer HTTP error.
-        # Import locally to avoid circular dependency at module import time.
-        from fastapi import HTTPException, status
+    except Exception:
+        # Fallback path: some passlib+bcrypt runtime combinations can fail
+        # unexpectedly. Hash directly with bcrypt so valid passwords continue
+        # to work in production.
+        try:
+            hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt())
+            return hashed.decode("utf-8")
+        except Exception as exc:
+            from fastapi import HTTPException, status
 
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Invalid password",
-        ) from exc
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Invalid password",
+            ) from exc
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    try:
+        return pwd_context.verify(plain, hashed)
+    except Exception:
+        try:
+            return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
+        except Exception:
+            return False
 
 
 def create_access_token(subject: str | UUID) -> str:

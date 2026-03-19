@@ -70,7 +70,7 @@ zstandard==0.25.0
 
 # Backend auth & DB (SaaS multi-user)
 python-dotenv==1.0.1
-groq==0.4.2
+groq==0.13.0
 sqlalchemy>=2.0.0
 psycopg2-binary>=2.9.9
 python-jose[cryptography]>=3.3.0

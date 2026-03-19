@@ -45,3 +45,4 @@ cache/
 .zencoder
 .zenflow
 frontend/README.md
+rebuild-backend.sh

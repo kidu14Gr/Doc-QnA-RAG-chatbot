@@ -45,41 +45,13 @@ async function authRequest(
   password: string,
 ): Promise<AuthResult> {
   const normalizedEmail = email.trim();
-  const attempts: Array<{ headers: HeadersInit; body: BodyInit }> = [
-    {
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: normalizedEmail, password, username: normalizedEmail }),
-    },
-    {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        username: normalizedEmail,
-        email: normalizedEmail,
-        password,
-      }),
-    },
-  ];
-
-  let lastError: Error | null = null;
-  for (let i = 0; i < attempts.length; i += 1) {
-    const response = await fetch(withBase(endpoint), {
-      method: 'POST',
-      headers: attempts[i].headers,
-      body: attempts[i].body,
-    });
-    if (response.ok) {
-      return response.json() as Promise<AuthResult>;
-    }
-
-    // Backward-compat retry: some backends validate a different body shape.
-    if (response.status === 422 && i < attempts.length - 1) {
-      lastError = await toError(response);
-      continue;
-    }
-    throw await toError(response);
-  }
-
-  throw lastError ?? new Error('Authentication failed');
+  const response = await fetch(withBase(endpoint), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: normalizedEmail, password }),
+  });
+  if (!response.ok) throw await toError(response);
+  return response.json() as Promise<AuthResult>;
 }
 
 export async function login(email: string, password: string): Promise<AuthResult> {
@@ -129,6 +101,12 @@ export async function askQuestion(question: string, topK = 4, token?: string): P
       body: JSON.stringify({ question }),
     });
     if (!response.ok) {
+      if (response.status >= 500) {
+        return {
+          answer:
+            'The general chat service is temporarily unavailable. Please try again shortly, or sign in and use document chat if available.',
+        };
+      }
       throw await toError(response);
     }
     return (await response.json()) as QueryResult;
