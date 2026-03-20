@@ -8,7 +8,13 @@ from sqlalchemy.orm import Session
 from ..db import get_db
 from ..models import User
 from .deps import get_current_user
-from .utils import create_access_token, hash_password, verify_password
+from .utils import (
+    create_access_token,
+    create_refresh_token,
+    decode_refresh_token,
+    hash_password,
+    verify_password,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -49,7 +55,11 @@ class LoginBody(BaseModel):
 
 class TokenOut(BaseModel):
     access_token: str
+    refresh_token: str | None = None
     token_type: str = "bearer"
+
+class RefreshBody(BaseModel):
+    refresh_token: str
 
 
 @router.post("/signup", response_model=TokenOut)
@@ -70,7 +80,8 @@ def signup(body: SignupBody, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
     token = create_access_token(user.id)
-    return TokenOut(access_token=token)
+    refresh = create_refresh_token(user.id)
+    return TokenOut(access_token=token, refresh_token=refresh)
 
 
 @router.post("/login", response_model=TokenOut)
@@ -82,7 +93,21 @@ def login(body: LoginBody, db: Session = Depends(get_db)):
             detail="Incorrect email or password",
         )
     token = create_access_token(user.id)
-    return TokenOut(access_token=token)
+    refresh = create_refresh_token(user.id)
+    return TokenOut(access_token=token, refresh_token=refresh)
+
+
+@router.post("/refresh", response_model=TokenOut)
+def refresh(body: RefreshBody):
+    subject = decode_refresh_token(body.refresh_token)
+    if not subject:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired refresh token",
+        )
+    token = create_access_token(subject)
+    refresh_token = create_refresh_token(subject)
+    return TokenOut(access_token=token, refresh_token=refresh_token)
 
 
 @router.get("/me")

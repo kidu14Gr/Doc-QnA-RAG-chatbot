@@ -15,7 +15,7 @@ It supports both **guest chat** and **authenticated document-grounded chat** wit
 
 ## 🎬 Demo
 
-> Add your GIF demo at `frontend/public/screenshots/demo.gif` and keep this block as-is for GitHub rendering.
+
 
 ![AI Doc RAG Demo](frontend/public/screenshots/demo.gif)
 
@@ -26,18 +26,19 @@ It supports both **guest chat** and **authenticated document-grounded chat** wit
 - ask document-grounded questions with retrieval,
 - continue conversations with persistent chat history.
 
-- **Responsive frontend** with React, TypeScript, Vite and Tailwind CSS.
-- **Backend API** using FastAPI for ingestion, querying, authentication, and chat history.
+
 - **JWT multi-user support** with per-user vector isolation and storage.
-- **Vector retrieval** powered by FAISS embeddings.
-- **Persistent chat logs** stored in PostgreSQL via SQLAlchemy.
+
 - **Docker Compose ready**: backend + database (and optionally static frontend files) in one command.
 - **RAG pipeline** using CPU‑friendly LLMs for retrieval‑augmented generation.
 
 ---
 
 ## ✨ Key Features
-
+- **Responsive frontend** with React, TypeScript, Vite and Tailwind CSS.
+- **Backend API** using FastAPI for ingestion, querying, authentication, and chat history.
+- **Vector retrieval** powered by FAISS embeddings.
+- **Persistent chat logs** stored in PostgreSQL via SQLAlchemy.
 - 🔐 **JWT authentication** with per-user isolation
 - 📄 **Document upload** (PDF/DOCX) directly from chat input
 - 🧠 **RAG pipeline** (ingest, embed, retrieve, answer)
@@ -45,6 +46,40 @@ It supports both **guest chat** and **authenticated document-grounded chat** wit
 - 💬 **Chat sessions sidebar** (`New Chat +`, session switching, persisted history)
 - ⏱️ **Prompt limit per chat** with remaining-counter UX
 - 🐳 **Docker Compose ready** for fast local deployment
+
+## 🧰 Technologies
+
+### 🎨 Frontend
+- **React 18** for dynamic, component-based UI
+- **TypeScript** for type-safe, maintainable code
+- **Vite** for fast local dev and optimized production builds
+- **Tailwind CSS** for modern responsive styling
+- **Lucide React** for clean iconography
+
+### ⚙️ Backend
+- **FastAPI** for high-performance async APIs
+- **Pydantic** for robust request/response validation
+- **SQLAlchemy** for ORM-based data access
+- **Uvicorn** as the ASGI server runtime
+- **python-jose + passlib/bcrypt** for JWT and password security
+
+### 🧠 AI / RAG
+- **Groq API** for fast LLM inference
+- **Sentence-Transformers** (`all-MiniLM-L6-v2`) for embeddings
+- **FAISS** for vector indexing and similarity search
+- **Custom `rag_core` pipelines** for ingestion, retrieval, and generation
+
+### 🗄️ Data & Persistence
+- **PostgreSQL** for users, chat sessions, and message history
+- **Per-user file storage** for uploaded documents
+- **Per-user FAISS indexes** with model-safe index naming
+
+### 🚀 DevOps, Quality & Hardening
+- **Docker + Docker Compose** for reproducible environments
+- **GitHub Actions** CI for backend/frontend quality checks
+- **Alembic** for schema migration lifecycle
+- **Prometheus metrics** endpoint (`/metrics`) for monitoring
+- **Rate limiting + request IDs** for reliability and observability
 
 ---
 
@@ -183,4 +218,44 @@ frontend/
   public/screenshots # README preview images
 ```
 
+---
+
+## 🛡️ Production-Readiness Notes
+
+- ✅ Authenticated routes protect user-specific resources.
+- ✅ User data isolation for documents, vectors, and chat history.
+- ✅ Session-based chat history persisted in PostgreSQL.
+- ✅ Dockerized deployment with persistent DB/storage volumes.
+- ✅ Improved upload/cancel UX and robust error handling.
+- ✅ CI pipeline for backend/frontend checks and Docker build smoke test.
+- ✅ Alembic migration scaffold added for schema evolution.
+- ✅ Observability basics: request metrics and request-ID tracking.
+- ✅ Security hardening: rate limiting and refresh-token endpoint.
+
+### CI/CD
+
+- Workflow file: `.github/workflows/ci-cd.yml`
+- Runs on PR/push/manual:
+  - backend dependency install + compile checks,
+  - frontend install + TypeScript check + production build,
+  - backend Docker image build smoke test.
+
+### Migrations (Alembic)
+
+- Config: `alembic.ini`
+- Environment: `alembic/env.py`
+- Initial revision: `alembic/versions/0001_initial_schema.py`
+
+```
+
+### Observability and Security Additions
+
+- `GET /metrics` endpoint for Prometheus scraping.
+- Request-ID response header (`X-Request-ID`) and request timing logs.
+- In-memory rate limiting middleware:
+  - global per-IP cap,
+  - stricter cap for `/auth/*` routes.
+- Refresh-token flow:
+  - `/auth/login` and `/auth/signup` return `refresh_token`,
+  - `/auth/refresh` rotates access + refresh tokens.
 

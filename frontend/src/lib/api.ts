@@ -37,7 +37,7 @@ function headers(token?: string): HeadersInit {
 
 export type UploadResult = { message?: string };
 export type QueryResult = { answer: string; sources?: Array<Record<string, unknown>> };
-export type AuthResult = { access_token: string; token_type: string };
+export type AuthResult = { access_token: string; refresh_token?: string; token_type: string };
 export type ChatSessionResult = { id: string; title: string; updated_at: string };
 export type ChatMessageResult = { id: string; role: 'user' | 'assistant'; message: string; timestamp: string };
 

@@ -3,6 +3,7 @@ import { Eye, EyeOff, LogIn, UserPlus } from 'lucide-react';
 import { login, signup } from '../lib/api';
 
 const AUTH_KEY = 'ai_doc_rag_token';
+const REFRESH_KEY = 'ai_doc_rag_refresh_token';
 
 export function getStoredToken(): string | null {
   return localStorage.getItem(AUTH_KEY);
@@ -12,8 +13,13 @@ export function setStoredToken(token: string): void {
   localStorage.setItem(AUTH_KEY, token);
 }
 
+export function setStoredRefreshToken(token: string): void {
+  localStorage.setItem(REFRESH_KEY, token);
+}
+
 export function clearStoredToken(): void {
   localStorage.removeItem(AUTH_KEY);
+  localStorage.removeItem(REFRESH_KEY);
 }
 
 interface AuthSectionProps {
@@ -66,6 +72,9 @@ export function AuthSection({
         ? await signup(email.trim(), password)
         : await login(email.trim(), password);
       setStoredToken(res.access_token);
+      if (res.refresh_token) {
+        setStoredRefreshToken(res.refresh_token);
+      }
       onAuthenticated(res.access_token);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Authentication failed');

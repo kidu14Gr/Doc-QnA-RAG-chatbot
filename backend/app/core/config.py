@@ -30,8 +30,10 @@ class Settings:
         self.postgres_port: int = _env_int("POSTGRES_PORT", 5432)
         self.database_url: str | None = _env("DATABASE_URL") or None
         self.jwt_secret_key: str = _env("JWT_SECRET_KEY")
+        self.jwt_refresh_secret_key: str = _env("JWT_REFRESH_SECRET_KEY") or self.jwt_secret_key
         self.jwt_algorithm: str = _env("JWT_ALGORITHM") or "HS256"
         self.access_token_expire_minutes: int = _env_int("ACCESS_TOKEN_EXPIRE_MINUTES", 60)
+        self.refresh_token_expire_days: int = _env_int("REFRESH_TOKEN_EXPIRE_DAYS", 14)
         self.storage_path: str = _env("STORAGE_PATH") or "/app/storage"
 
     def get_database_url(self) -> str:
