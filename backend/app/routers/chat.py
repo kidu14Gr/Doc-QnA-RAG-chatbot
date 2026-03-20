@@ -10,7 +10,14 @@ from sqlalchemy.orm import Session
 from ..auth import get_current_user
 from ..db import get_db
 from ..models import User
-from ..services.chat_service import create_chat_session, get_chat_messages, get_chat_session, list_chat_sessions
+from ..services.chat_service import (
+    create_chat_session,
+    delete_chat_session,
+    get_chat_messages,
+    get_chat_session,
+    list_chat_sessions,
+    rename_chat_session,
+)
 from ..services.rag_service import _get_llm
 from rag_core.generation.prompt_templates import build_general_prompt
 
@@ -41,6 +48,10 @@ class ChatMessageOut(BaseModel):
 
 class CreateChatSessionBody(BaseModel):
     title: str = Field(default="New Chat", min_length=1, max_length=255)
+
+
+class RenameChatSessionBody(BaseModel):
+    title: str = Field(..., min_length=1, max_length=255)
 
 
 @router.post("/general", response_model=GeneralChatResponse)
@@ -124,3 +135,53 @@ def get_session_messages(
         )
         for m in messages
     ]
+
+
+@router.patch("/sessions/{session_id}", response_model=ChatSessionOut)
+def rename_session(
+    session_id: str,
+    body: RenameChatSessionBody,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        from uuid import UUID
+
+        session_uuid = UUID(session_id)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid session_id",
+        ) from exc
+
+    session = rename_chat_session(db, current_user.id, session_uuid, body.title)
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chat session not found")
+
+    return ChatSessionOut(
+        id=str(session.id),
+        title=session.title,
+        updated_at=session.updated_at.isoformat() if session.updated_at else "",
+    )
+
+
+@router.delete("/sessions/{session_id}")
+def delete_session(
+    session_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        from uuid import UUID
+
+        session_uuid = UUID(session_id)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid session_id",
+        ) from exc
+
+    deleted = delete_chat_session(db, current_user.id, session_uuid)
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chat session not found")
+    return {"ok": True}

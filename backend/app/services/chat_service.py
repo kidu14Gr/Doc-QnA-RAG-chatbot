@@ -43,6 +43,31 @@ def get_chat_session(db: Session, user_id: UUID, session_id: UUID) -> ChatSessio
     )
 
 
+def rename_chat_session(
+    db: Session,
+    user_id: UUID,
+    session_id: UUID,
+    title: str,
+) -> ChatSession | None:
+    session = get_chat_session(db, user_id, session_id)
+    if not session:
+        return None
+    session.title = title.strip() or session.title
+    session.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(session)
+    return session
+
+
+def delete_chat_session(db: Session, user_id: UUID, session_id: UUID) -> bool:
+    session = get_chat_session(db, user_id, session_id)
+    if not session:
+        return False
+    db.delete(session)
+    db.commit()
+    return True
+
+
 def get_chat_messages(db: Session, user_id: UUID, session_id: UUID) -> list[ChatHistory]:
     return (
         db.query(ChatHistory)

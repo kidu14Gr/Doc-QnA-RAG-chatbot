@@ -2,8 +2,16 @@ import { useEffect, useState } from 'react';
 import { AuthSection, clearStoredToken, getStoredToken } from './components/AuthSection';
 import { Header } from './components/Header';
 import { ChatSection } from './components/ChatSection';
-import { ArrowRight, Sparkles, Bot, ShieldCheck, FileUp, Plus } from 'lucide-react';
-import { askQuestion, createChatSession, getChatMessages, listChatSessions } from './lib/api';
+import { ArrowRight, Sparkles, Bot, ShieldCheck, FileUp, Plus, Pencil, Trash2 } from 'lucide-react';
+import {
+  ApiError,
+  askQuestion,
+  createChatSession,
+  deleteChatSession,
+  getChatMessages,
+  listChatSessions,
+  renameChatSession,
+} from './lib/api';
 import type { ChatSession, DocumentInfo, Message, View } from './types';
 
 const DEFAULT_TOP_K = 4;
@@ -18,6 +26,8 @@ export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState('');
   const [isAnswering, setIsAnswering] = useState(false);
   const isAuthenticated = Boolean(token);
   const usedPromptsInActiveChat = messages.filter((m) => m.type === 'user').length;
@@ -42,8 +52,82 @@ export default function App() {
   const refreshSessions = async (authToken: string) => {
     const items = await listChatSessions(authToken);
     setSessions(items);
-    if (!activeChatId && items.length > 0) {
-      setActiveChatId(items[0].id);
+    setActiveChatId((current) => {
+      if (current && items.some((s) => s.id === current)) return current;
+      return items[0]?.id ?? null;
+    });
+  };
+
+  const createNewChat = async () => {
+    if (!token) return;
+    const created = await createChatSession(token, 'New Chat');
+    setSessions((prev) => [created, ...prev.filter((s) => s.id !== created.id)]);
+    setActiveChatId(created.id);
+    setMessages([]);
+    setUploadedDocument(null);
+    setEditingSessionId(null);
+    setEditingTitle('');
+  };
+
+  const startRename = (session: ChatSession) => {
+    setEditingSessionId(session.id);
+    setEditingTitle(session.title || 'New Chat');
+  };
+
+  const saveRename = async (sessionId: string) => {
+    if (!token) return;
+    const nextTitle = editingTitle.trim();
+    const current = sessions.find((s) => s.id === sessionId);
+    if (!nextTitle || !current || nextTitle === current.title) {
+      setEditingSessionId(null);
+      setEditingTitle('');
+      return;
+    }
+    try {
+      const updated = await renameChatSession(token, sessionId, nextTitle);
+      setSessions((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) {
+        await refreshSessions(token).catch(() => undefined);
+      } else {
+        console.error(e);
+      }
+    } finally {
+      setEditingSessionId(null);
+      setEditingTitle('');
+    }
+  };
+
+  const removeSession = async (sessionId: string) => {
+    if (!token) return;
+    const confirmed = window.confirm('Delete this chat? This action cannot be undone.');
+    if (!confirmed) return;
+    try {
+      await deleteChatSession(token, sessionId);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) {
+        // Re-sync with server: session may already be gone, or backend may be missing DELETE (rebuild image).
+        await refreshSessions(token).catch(() => undefined);
+        if (editingSessionId === sessionId) {
+          setEditingSessionId(null);
+          setEditingTitle('');
+        }
+        return;
+      }
+      console.error(e);
+      return;
+    }
+    setSessions((prev) => {
+      const remaining = prev.filter((s) => s.id !== sessionId);
+      if (activeChatId === sessionId) {
+        setActiveChatId(remaining[0]?.id ?? null);
+        setMessages([]);
+      }
+      return remaining;
+    });
+    if (editingSessionId === sessionId) {
+      setEditingSessionId(null);
+      setEditingTitle('');
     }
   };
 
@@ -236,14 +320,7 @@ export default function App() {
             <div className="h-full flex">
               <aside className="w-72 border-r border-slate-200 bg-white/70 backdrop-blur-sm p-3 flex flex-col gap-3">
                 <button
-                  onClick={async () => {
-                    if (!token) return;
-                    const created = await createChatSession(token, 'New Chat');
-                    setSessions((prev) => [created, ...prev.filter((s) => s.id !== created.id)]);
-                    setActiveChatId(created.id);
-                    setMessages([]);
-                    setUploadedDocument(null);
-                  }}
+                  onClick={createNewChat}
                   className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-gradient-to-r from-indigo-600 to-purple-600 text-white"
                 >
                   <Plus className="w-4 h-4" /> New Chat
@@ -253,17 +330,63 @@ export default function App() {
                     <p className="text-sm text-slate-500 px-2 py-3">No chats yet. Start a new one.</p>
                   )}
                   {sessions.map((session) => (
-                    <button
+                    <div
                       key={session.id}
-                      onClick={() => setActiveChatId(session.id)}
-                      className={`w-full text-left px-3 py-2 rounded-lg border transition ${
+                      className={`w-full px-3 py-2 rounded-lg border transition ${
                         activeChatId === session.id
                           ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
                           : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
                       }`}
                     >
-                      <p className="truncate text-sm">{session.title}</p>
-                    </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setActiveChatId(session.id)}
+                          className="flex-1 text-left min-w-0"
+                        >
+                          {editingSessionId === session.id ? (
+                            <input
+                              autoFocus
+                              value={editingTitle}
+                              onChange={(e) => setEditingTitle(e.target.value)}
+                              onClick={(e) => e.stopPropagation()}
+                              onBlur={() => saveRename(session.id)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault();
+                                  saveRename(session.id);
+                                } else if (e.key === 'Escape') {
+                                  setEditingSessionId(null);
+                                  setEditingTitle('');
+                                }
+                              }}
+                              className="w-full bg-white border border-indigo-300 rounded px-2 py-1 text-sm text-slate-800"
+                            />
+                          ) : (
+                            <p className="truncate text-sm">{session.title}</p>
+                          )}
+                        </button>
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            startRename(session);
+                          }}
+                          className="p-1.5 rounded hover:bg-slate-100 text-slate-500 hover:text-indigo-600"
+                          title="Rename chat"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            await removeSession(session.id);
+                          }}
+                          className="p-1.5 rounded hover:bg-red-50 text-slate-500 hover:text-red-600"
+                          title="Delete chat"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
                   ))}
                 </div>
               </aside>
@@ -276,14 +399,7 @@ export default function App() {
                   isGuest={!isAuthenticated}
                   onUpgradeClick={() => openAuthModal('signup')}
                   onDocumentUpload={handleDocumentUpload}
-                  onCreateNewChat={async () => {
-                    if (!token) return;
-                    const created = await createChatSession(token, 'New Chat');
-                    setSessions((prev) => [created, ...prev.filter((s) => s.id !== created.id)]);
-                    setActiveChatId(created.id);
-                    setMessages([]);
-                    setUploadedDocument(null);
-                  }}
+                  onCreateNewChat={createNewChat}
                   token={token}
                   maxPrompts={MAX_PROMPTS_PER_CHAT}
                   remainingPrompts={remainingPrompts}

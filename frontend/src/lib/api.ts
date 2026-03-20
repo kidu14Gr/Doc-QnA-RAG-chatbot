@@ -3,9 +3,20 @@ const API_BASE_URL = rawBase === '' ? '' : rawBase;
 
 const withBase = (path: string) => `${API_BASE_URL}${path}`;
 
-const toError = async (response: Response) => {
+/** Thrown for failed API responses; includes HTTP status for branching (e.g. 404). */
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+const toError = async (response: Response): Promise<ApiError> => {
   const text = await response.text();
-  if (!text) return new Error(`Request failed with status ${response.status}`);
+  if (!text) return new ApiError(`Request failed with status ${response.status}`, response.status);
   try {
     const j = JSON.parse(text);
     const detail = j?.detail;
@@ -18,14 +29,14 @@ const toError = async (response: Response) => {
           return path ? `${path}: ${message}` : message;
         })
         .join('; ');
-      return new Error(msg || `Request failed with status ${response.status}`);
+      return new ApiError(msg || `Request failed with status ${response.status}`, response.status);
     }
     if (typeof detail === 'string' && detail.trim() !== '') {
-      return new Error(detail);
+      return new ApiError(detail, response.status);
     }
-    return new Error(text || `Request failed with status ${response.status}`);
+    return new ApiError(text || `Request failed with status ${response.status}`, response.status);
   } catch {
-    return new Error(text || `Request failed with status ${response.status}`);
+    return new ApiError(text || `Request failed with status ${response.status}`, response.status);
   }
 };
 
@@ -166,4 +177,26 @@ export async function getChatMessages(token: string, sessionId: string): Promise
   });
   if (!response.ok) throw await toError(response);
   return (await response.json()) as ChatMessageResult[];
+}
+
+export async function renameChatSession(
+  token: string,
+  sessionId: string,
+  title: string,
+): Promise<ChatSessionResult> {
+  const response = await fetch(withBase(`/chat/sessions/${sessionId}`), {
+    method: 'PATCH',
+    headers: { ...headers(token), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title }),
+  });
+  if (!response.ok) throw await toError(response);
+  return (await response.json()) as ChatSessionResult;
+}
+
+export async function deleteChatSession(token: string, sessionId: string): Promise<void> {
+  const response = await fetch(withBase(`/chat/sessions/${sessionId}`), {
+    method: 'DELETE',
+    headers: headers(token),
+  });
+  if (!response.ok) throw await toError(response);
 }
