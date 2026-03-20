@@ -1,10 +1,13 @@
-# AI Document RAG Chatbot
+# 🤖 AI Document RAG Chatbot
 
 AI‑powered question‑answering chatbot that bundles a **responsive React frontend**, a **FastAPI backend**,
 a PostgreSQL database and a FAISS vector store. Entire stack is open-source and can be run locally via
 **Docker Compose** or developed independently.
 
-## Key Features
+- chat freely as a guest,
+- sign in to upload PDF/DOCX files,
+- ask document-grounded questions with retrieval,
+- continue conversations with persistent chat history.
 
 - **Responsive frontend** with React, TypeScript, Vite and Tailwind CSS.
 - **Backend API** using FastAPI for ingestion, querying, authentication, and chat history.
@@ -14,22 +17,45 @@ a PostgreSQL database and a FAISS vector store. Entire stack is open-source and 
 - **Docker Compose ready**: backend + database (and optionally static frontend files) in one command.
 - **RAG pipeline** using CPU‑friendly LLMs for retrieval‑augmented generation.
 
-## Architecture Overview
+---
+
+## ✨ Key Features
+
+- 🔐 **JWT authentication** with per-user isolation
+- 📄 **Document upload** (PDF/DOCX) directly from chat input
+- 🧠 **RAG pipeline** (ingest, embed, retrieve, answer)
+- 🗂️ **Per-user vector indexes** with model-safe FAISS index naming
+- 💬 **Chat sessions sidebar** (`New Chat +`, session switching, persisted history)
+- ⏱️ **Prompt limit per chat** with remaining-counter UX
+- 🐳 **Docker Compose ready** for fast local deployment
+
+---
+
+## 🏗️ Architecture Overview
 
 ```mermaid
-graph LR
-  subgraph frontend
-    A[React SPA]
-  end
+flowchart LR
+    FE[Frontend: React + Vite + Tailwind]
+    API[Backend: FastAPI]
+    AUTH[Auth: JWT]
+    CHAT[Chat + Session Service]
+    RAG[RAG Core]
+    EMB[Embedding Model]
+    VS[(FAISS Vector Store)]
+    DB[(PostgreSQL)]
+    FS[(User File Storage)]
+    LLM[Groq LLM API]
 
-  subgraph backend
-    B[FastAPI]
-    B --> C[SQLAlchemy/PostgreSQL]
-    B --> D[FAISS vector store]
-    B --> E[RAG logic (rag_core)]
-  end
-
-  A -->|HTTP| B
+    FE -->|HTTP| API
+    API --> AUTH
+    API --> CHAT
+    API --> RAG
+    CHAT --> DB
+    RAG --> EMB
+    RAG --> VS
+    RAG --> LLM
+    API --> FS
+    API --> DB
 ```
 
 - Frontend in `frontend/` handles uploads, chat UI and user interactions.
@@ -37,87 +63,128 @@ graph LR
 - Data layer: PostgreSQL for users/chat, filesystem for documents, FAISS for embeddings.
 - Core RAG code lives in `rag_core/` and is framework-agnostic.
 
-## Frontend (Responsive UI)
+## 🖼️ Project Preview
 
-A small React + Vite single-page application. Key points:
+> Screenshots are loaded from `frontend/public/screenshots` and linked with URL-encoded paths for GitHub compatibility.
 
-- Component-driven with `App.tsx` coordinating `UploadSection`, `ChatSection`, etc.
-- Tailwind CSS provides responsive styling; layout adapts to mobile and desktop.
-- Proxy configuration allows dev server to forward API calls to backend (see `vite.config.ts`).
-- `src/lib/api.ts` centralizes HTTP calls and error handling.
-
-> See `frontend/README.md` for exhaustive details on files, flows, and extensions.
-
-## Backend
-
-- FastAPI application in `backend/app/`.
-- URL structure:
-  - `POST /auth/signup`, `/auth/login` – returns JWT tokens.
-  - `POST /upload/pdf` and `/upload/docx` – accepts file uploads.
-  - `POST /query` – send question and receive answer + sources.
-  - `POST /chat/general` – public chat endpoint (no auth).
-- Services encapsulate RAG logic (`rag_service.py`), storage paths, and chat persistence.
-- Configuration via environment variables (`backend/app/core/config.py`).
-- SQLAlchemy models for `User`, `Document`, `ChatHistory` under `backend/app/models/`.
-
-## Database
-
-- PostgreSQL provides user accounts and chat histories.
-- Schema defined through SQLAlchemy models and created via `init_db()`.
-- Included in Docker Compose as the `db` service.
-
-## Vector Store
-
-- FAISS index stored under `data/faiss_index*`.
-- Each user has a separate index file to isolate their documents.
-- Embeddings generated using `sentence-transformers/all-mpnet-base-v2`.
-
-## Docker
-
-The project includes a `docker-compose.yml` and backend `Dockerfile`:
-
-1. Copy `.env.example` to `.env` and set at least:
-   - `POSTGRES_PASSWORD`, `JWT_SECRET_KEY` (long random string).
-   - `GROQ_API_KEY`, `HF_TOKEN` for RAG model access.
-2. From project root: `docker compose up --build`.
-3. Backend: http://localhost:8000 — API docs at http://localhost:8000/docs.
-
-The frontend can run separately via `npm run dev` or be built and served as static files by the backend.
-
-## Running Locally Without Docker
-
-You can install dependencies manually:
-
-- Python: create a venv, `pip install -r requirements.txt`.
-- PostgreSQL: run locally and set `DATABASE_URL` accordingly.
-- Start FastAPI with `uvicorn backend.app.main:app --reload`.
-- Frontend: `cd frontend && npm install && npm run dev`.
-
-## Project Layout
-
-```
-backend/           # FastAPI app and modules
-rag_core/          # RAG pipeline code (ingestion, retrieval, generation)
-frontend/          # React + Vite user interface
-data/              # FAISS indexes (ignored by git, see .gitignore)
-uploaded_docs/     # raw document files (ignored by git)
-```
-
-## Development Notes
-
-- Empty directories are preserved with `.gitkeep` files; all other contents are ignored.
-- Uploaded documents and vector stores should not be committed (see .gitignore).
-- Add more document types by extending both frontend validation and backend endpoints.
-- Swap FAISS for another vector store with minimal changes in `rag_core/retrieval/vector_store.py`.
-
-## Extensibility & Ideas
-
-- Persist chat history in frontend (local storage) or extend backend for user-specific sessions.
-- Replace the simulated upload progress with real-time progress events.
-- Add authentication/authorization policies (roles, refresh tokens).
-- Integrate alternate LLMs or external search providers.
+![Project Screenshot 1](frontend/public/screenshots/Screenshot%201.png)
+![Project Screenshot 2](frontend/public/screenshots/Screenshot%202.png)
+![Project Screenshot 3](frontend/public/screenshots/Screenshot%203.png)
+![Project Screenshot 4](frontend/public/screenshots/Screenshot%204.png)
+![Project Screenshot 5](frontend/public/screenshots/Screenshot%205.png)
 
 ---
 
-This README aims to be a one‑stop summary; for component-level details refer to the
-`frontend/README.md` and inline comments in the Python modules.
+## 🧩 Backend API Overview
+
+- `POST /auth/signup` – create account
+- `POST /auth/login` – login and receive token
+- `GET /auth/me` – authenticated user info
+- `POST /upload/pdf` – upload and ingest PDF
+- `POST /upload/docx` – upload and ingest DOCX
+- `POST /query` – authenticated RAG query (`chat_id` supported)
+- `POST /chat/general` – guest/general chat
+- `GET /chat/sessions` – list user chat sessions
+- `POST /chat/sessions` – create new chat session
+- `GET /chat/sessions/{session_id}/messages` – fetch session messages
+
+Interactive docs: [http://localhost:8000/docs](http://localhost:8000/docs)
+
+---
+
+## ⚙️ Environment Variables
+
+Create `.env` with at least:
+
+- `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`
+- `JWT_SECRET_KEY`, `JWT_ALGORITHM`, `ACCESS_TOKEN_EXPIRE_MINUTES`
+- `GROQ_API_KEY`, `GROQ_MODEL`
+- `HF_TOKEN` (if needed for model pulls)
+- `EMBEDDING_MODEL` (default: `sentence-transformers/all-MiniLM-L6-v2`)
+
+---
+
+## 🚀 Quick Start (Docker)
+
+```bash
+docker compose up -d --build
+```
+
+Services:
+
+- Backend: [http://localhost:8000](http://localhost:8000)
+- API Docs: [http://localhost:8000/docs](http://localhost:8000/docs)
+- Adminer: [http://localhost:8080](http://localhost:8080)
+
+---
+
+## 💻 Local Development (Without Docker)
+
+### Backend
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+---
+
+## 📁 Project Structure
+
+```text
+backend/
+  app/
+    auth/            # auth routes, jwt deps, password utils
+    core/            # config/settings
+    db/              # SQLAlchemy engine/session/init
+    models/          # User, Document, ChatSession, ChatHistory
+    routers/         # auth, upload, query, chat
+    services/        # rag service, chat service, storage service
+    schemas/         # request/response models
+
+rag_core/
+  generation/        # prompts + LLM wrapper
+  ingestion/         # PDF/DOCX loaders and chunking
+  pipeline/          # ingest/query orchestration
+  retrieval/         # embedder + FAISS vector store
+
+frontend/
+  src/
+    components/      # UI sections (chat, auth, header)
+    lib/             # API client
+    styles/          # Tailwind styles
+  public/screenshots # README preview images
+```
+
+---
+
+## 🛡️ Production-Readiness Notes
+
+- ✅ Authenticated routes protect user-specific resources.
+- ✅ User data isolation for documents, vectors, and chat history.
+- ✅ Session-based chat history persisted in PostgreSQL.
+- ✅ Dockerized deployment with persistent DB/storage volumes.
+- ✅ Improved upload/cancel UX and robust error handling.
+
+Recommended next production hardening steps:
+
+- add CI checks (lint, type-check, tests),
+- use Alembic migrations for schema evolution,
+- add observability (structured logs, metrics, tracing),
+- add rate limiting and refresh-token strategy.
+
+---
+
+## 🙌 Final Notes
+
+This project is now structured for smooth local development and scalable production evolution, while preserving the current working behavior.
